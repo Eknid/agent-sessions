@@ -1,0 +1,23 @@
+.github/workflows/ci.yml
+  s_1fe1bd3c63995f::t_25579f86f2806f 15-16
+package.json
+  s_1fe1bd3c63995f::t_4cd7e1401d6776 501
+scripts/run-tests.js
+  s_1fe1bd3c63995f::t_9033d7e424aaff 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19f7912c85c1331619e854da2023cab37da05be9",
+  "prompts": {},
+  "sessions": {
+    "s_1fe1bd3c63995f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1226b-93a8-7a92-a059-e15a61633324",
+        "model": "unknown"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
