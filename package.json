@@ -498,7 +498,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
-    "test": "npm run compile && node --test \"out/test/*.test.js\"",
+    "test": "npm run compile && node scripts/run-tests.js",
     "test:e2e": "npm run compile && AGENT_SESSIONS_E2E=1 node --test out/test/e2e.test.js",
     "package": "npm run compile && vsce package --no-dependencies"
   },
