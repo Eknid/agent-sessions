@@ -1,0 +1,512 @@
+{
+  "name": "agent-sessions",
+  "displayName": "Agent Sessions",
+  "description": "Run and monitor multiple coding-agent sessions from VS Code, with chat, approvals, subagents, usage and cost tracking.",
+  "version": "0.11.7",
+  "publisher": "eknid-mucollari",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eknid-mucollari/agent-sessions.git"
+  },
+  "homepage": "https://github.com/eknid-mucollari/agent-sessions#readme",
+  "bugs": {
+    "url": "https://github.com/eknid-mucollari/agent-sessions/issues"
+  },
+  "keywords": [
+    "agents",
+    "ai",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "sessions"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/src/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onWebviewPanel:agentSessions.session",
+    "onWebviewPanel:agentSessions.board"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentSessions",
+          "title": "Agent Sessions",
+          "icon": "resources/sessions.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentSessions": [
+        {
+          "id": "agentSessions.tree",
+          "name": "Sessions"
+        },
+        {
+          "id": "agentSessions.metrics",
+          "name": "Metrics",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "agentSessions.tree",
+        "contents": "No agent sessions yet.\n[New Session](command:agentSessions.newSession)\n[Resume Past Conversation\u2026](command:agentSessions.resumePast)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "agentSessions.board",
+        "title": "Open Board",
+        "category": "Agent Sessions",
+        "icon": "$(project)"
+      },
+      {
+        "command": "agentSessions.newSession",
+        "title": "New Session",
+        "category": "Agent Sessions",
+        "icon": "$(add)"
+      },
+      {
+        "command": "agentSessions.newSessionHere",
+        "title": "New Agent Session Here",
+        "category": "Agent Sessions",
+        "icon": "$(add)"
+      },
+      {
+        "command": "agentSessions.resumePast",
+        "title": "Resume Past Conversation\u2026",
+        "category": "Agent Sessions",
+        "icon": "$(history)"
+      },
+      {
+        "command": "agentSessions.open",
+        "title": "Open Session",
+        "category": "Agent Sessions",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "agentSessions.openAgent",
+        "title": "Open Subagent Transcript",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessions.interrupt",
+        "title": "Interrupt Turn",
+        "category": "Agent Sessions",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "agentSessions.stop",
+        "title": "Stop Process",
+        "category": "Agent Sessions",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "agentSessions.resume",
+        "title": "Resume Session",
+        "category": "Agent Sessions",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "agentSessions.remove",
+        "title": "Remove from List",
+        "category": "Agent Sessions",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agentSessions.fork",
+        "title": "Fork Conversation",
+        "category": "Agent Sessions",
+        "icon": "$(repo-forked)"
+      },
+      {
+        "command": "agentSessions.archive",
+        "title": "Archive",
+        "category": "Agent Sessions",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "agentSessions.unarchive",
+        "title": "Unarchive",
+        "category": "Agent Sessions",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "agentSessions.showArchived",
+        "title": "Show Archived Conversations",
+        "category": "Agent Sessions",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "agentSessions.rename",
+        "title": "Rename",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessions.copySessionId",
+        "title": "Copy Session ID",
+        "category": "Agent Sessions",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "agentSessions.openNative",
+        "title": "Open in Native Terminal (Claude Code / Codex)",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessions.showWaiting",
+        "title": "Show Sessions Waiting for You",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessions.groupByRepository",
+        "title": "Group by Repository",
+        "category": "Agent Sessions",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "agentSessions.groupByStatus",
+        "title": "Group by Status",
+        "category": "Agent Sessions",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "agentSessions.filter",
+        "title": "Filter by State",
+        "category": "Agent Sessions",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "agentSessions.collapseAll",
+        "title": "Collapse All",
+        "category": "Agent Sessions",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "agentSessions.changeCodexModel",
+        "title": "Change Codex Model",
+        "category": "Agent Sessions"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentSessions.board",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@0"
+        },
+        {
+          "command": "agentSessions.newSession",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agentSessions.resumePast",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agentSessions.showArchived",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentSessions.groupByRepository",
+          "when": "view == agentSessions.tree && config.agentSessions.groupBy != 'repository'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentSessions.groupByStatus",
+          "when": "view == agentSessions.tree && config.agentSessions.groupBy == 'repository'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentSessions.filter",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentSessions.collapseAll",
+          "when": "view == agentSessions.tree",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "agentSessions.newSessionHere",
+          "when": "view == agentSessions.tree && viewItem == repo",
+          "group": "1_edit@0"
+        },
+        {
+          "command": "agentSessions.open",
+          "when": "view == agentSessions.tree && viewItem =~ /^session/",
+          "group": "inline@1"
+        },
+        {
+          "command": "agentSessions.interrupt",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.(running|waiting)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "agentSessions.resume",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.exited/",
+          "group": "inline@2"
+        },
+        {
+          "command": "agentSessions.rename",
+          "when": "view == agentSessions.tree && viewItem =~ /^session/",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "agentSessions.copySessionId",
+          "when": "view == agentSessions.tree && viewItem =~ /^session/",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "agentSessions.fork",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\..*\\.forkable(?:\\.codex)?$/",
+          "group": "1_edit@3"
+        },
+        {
+          "command": "agentSessions.openNative",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.(idle|exited)/",
+          "group": "2_open@1"
+        },
+        {
+          "command": "agentSessions.stop",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.(running|waiting|idle|starting)/",
+          "group": "3_lifecycle@1"
+        },
+        {
+          "command": "agentSessions.resume",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.exited/",
+          "group": "3_lifecycle@2"
+        },
+        {
+          "command": "agentSessions.remove",
+          "when": "view == agentSessions.tree && viewItem =~ /^session\\.exited/",
+          "group": "3_lifecycle@4"
+        },
+        {
+          "command": "agentSessions.archive",
+          "when": "view == agentSessions.tree && viewItem =~ /^session/",
+          "group": "3_lifecycle@3"
+        },
+        {
+          "command": "agentSessions.open",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "inline@1"
+        },
+        {
+          "command": "agentSessions.unarchive",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "inline@2"
+        },
+        {
+          "command": "agentSessions.unarchive",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "agentSessions.rename",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "agentSessions.copySessionId",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "1_edit@3"
+        },
+        {
+          "command": "agentSessions.fork",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived\\.forkable$/",
+          "group": "1_edit@4"
+        },
+        {
+          "command": "agentSessions.remove",
+          "when": "view == agentSessions.tree && viewItem =~ /^archived/",
+          "group": "3_lifecycle@3"
+        },
+        {
+          "command": "agentSessions.changeCodexModel",
+          "when": "view == agentSessions.tree && viewItem =~ /^session.*\\.codex$/",
+          "group": "2_open@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "agentSessions.newSessionHere",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@20"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "agentSessions.openAgent",
+          "when": "false"
+        },
+        {
+          "command": "agentSessions.collapseAll",
+          "when": "false"
+        },
+        {
+          "command": "agentSessions.newSessionHere",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Sessions",
+      "properties": {
+        "agentSessions.claudePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the claude executable. Empty = resolved from your login shell (command -v claude)."
+        },
+        "agentSessions.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default Claude Code model: a full ID (e.g. claude-opus-5-5 or claude-opus-4-8) or alias. Empty = CLI default."
+        },
+        "agentSessions.permissionMode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "acceptEdits",
+            "plan",
+            "auto",
+            "dontAsk",
+            "bypassPermissions"
+          ],
+          "default": "default",
+          "description": "Permission mode passed to claude (--permission-mode).",
+          "enumDescriptions": [
+            "Ask for approval",
+            "Automatically accept file edits",
+            "Explore and plan without changes",
+            "Use Claude automatic action review",
+            "Deny actions that need an approval prompt",
+            "Bypass Claude permission checks"
+          ]
+        },
+        "agentSessions.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments passed to every claude process."
+        },
+        "agentSessions.notifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Notify when a background session needs you or finishes its turn."
+        },
+        "agentSessions.pricingOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "$/MTok rates per canonical model, used for live estimates. E.g. {\"claude-opus-5-5\": {\"input\": 4, \"output\": 20, \"cacheWrite5m\": 5, \"cacheWrite1h\": 8, \"cacheRead\": 0.2, \"contextWindow\": 1000000}}"
+        },
+        "agentSessions.groupBy": {
+          "type": "string",
+          "enum": [
+            "status",
+            "repository"
+          ],
+          "enumDescriptions": [
+            "Running / Waiting for you / Done, as on the board",
+            "One group per repository (git root of the session's folder)"
+          ],
+          "default": "status",
+          "description": "How the Sessions list groups sessions. Also switched with the button in the view title."
+        },
+        "agentSessions.defaultProvider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "default": "claude",
+          "description": "Preferred agent shown first when creating a session."
+        },
+        "agentSessions.codexPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the codex executable. Empty = use the active official Codex extension's bundled CLI when available, otherwise resolve from your login shell."
+        },
+        "agentSessions.codexDefaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default model ID for new Codex sessions. Empty = your Codex configuration default."
+        },
+        "agentSessions.codexExtraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments for codex app-server (for example -c configuration overrides)."
+        },
+        "agentSessions.codexApprovalPolicy": {
+          "type": "string",
+          "enum": [
+            "on-request",
+            "untrusted",
+            "never"
+          ],
+          "default": "on-request",
+          "description": "Codex approval policy. Requests appear in the session tab. Never disables approval prompts; sandbox restrictions still apply."
+        },
+        "agentSessions.codexSandbox": {
+          "type": "string",
+          "enum": [
+            "workspace-write",
+            "read-only",
+            "danger-full-access"
+          ],
+          "default": "workspace-write",
+          "description": "Sandbox for Codex sessions. Workspace-write permits changes in the session folder."
+        },
+        "agentSessions.additionalClaudeModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra Claude model IDs or deployment names to include in the picker."
+        },
+        "agentSessions.additionalCodexModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra Codex model IDs to include alongside the installed CLI catalogue."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test": "npm run compile && node --test \"out/test/*.test.js\"",
+    "test:e2e": "npm run compile && AGENT_SESSIONS_E2E=1 node --test out/test/e2e.test.js",
+    "package": "npm run compile && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "~1.90.0",
+    "@vscode/vsce": "^3.2.0",
+    "marked": "^18.1.0",
+    "typescript": "^5.6.0"
+  }
+}

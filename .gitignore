@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+out/
+coverage/
+*.vsix
+*.log
+npm-debug.log*
+
+# Local extension/test state
+.vscode-test/
+.claude/
+.codex/
+.agents/
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment files
+.env
+.env.*
+!.env.example
