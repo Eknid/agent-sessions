@@ -2,16 +2,16 @@
   "name": "agent-sessions",
   "displayName": "Agent Sessions",
   "description": "Run and monitor multiple coding-agent sessions from VS Code, with chat, approvals, subagents, usage and cost tracking.",
-  "version": "0.11.7",
+  "version": "0.11.10",
   "publisher": "eknid-mucollari",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eknid-mucollari/agent-sessions.git"
+    "url": "https://github.com/Eknid/agent-sessions.git"
   },
-  "homepage": "https://github.com/eknid-mucollari/agent-sessions#readme",
+  "homepage": "https://github.com/Eknid/agent-sessions#readme",
   "bugs": {
-    "url": "https://github.com/eknid-mucollari/agent-sessions/issues"
+    "url": "https://github.com/Eknid/agent-sessions/issues"
   },
   "keywords": [
     "agents",
@@ -31,20 +31,22 @@
   "activationEvents": [
     "onStartupFinished",
     "onWebviewPanel:agentSessions.session",
-    "onWebviewPanel:agentSessions.board"
+    "onWebviewPanel:agentSessions.board",
+    "onWebviewPanel:claudeSessions.session",
+    "onWebviewPanel:claudeSessions.board"
   ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "agentSessions",
+          "id": "agentSessionsSidebar",
           "title": "Agent Sessions",
           "icon": "resources/sessions.svg"
         }
       ]
     },
     "views": {
-      "agentSessions": [
+      "agentSessionsSidebar": [
         {
           "id": "agentSessions.tree",
           "name": "Sessions"
@@ -59,7 +61,7 @@
     "viewsWelcome": [
       {
         "view": "agentSessions.tree",
-        "contents": "No agent sessions yet.\n[New Session](command:agentSessions.newSession)\n[Resume Past Conversation\u2026](command:agentSessions.resumePast)"
+        "contents": "No agent sessions yet.\n[New Session](command:agentSessions.newSession)\n[Resume Past Conversation…](command:agentSessions.resumePast)"
       }
     ],
     "commands": [
@@ -83,7 +85,7 @@
       },
       {
         "command": "agentSessions.resumePast",
-        "title": "Resume Past Conversation\u2026",
+        "title": "Resume Past Conversation…",
         "category": "Agent Sessions",
         "icon": "$(history)"
       },
@@ -387,7 +389,7 @@
             "dontAsk",
             "bypassPermissions"
           ],
-          "default": "default",
+          "default": "auto",
           "description": "Permission mode passed to claude (--permission-mode).",
           "enumDescriptions": [
             "Ask for approval",

@@ -78,6 +78,8 @@ export type Inbound =
   | { type: 'changePermissions' }
   | { type: 'refreshUsage' }
   | { type: 'voice' }
+  | { type: 'requestFiles' }
+  | { type: 'copyText'; text: string }
   | { type: 'dropPaths'; uris: string[] };
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
@@ -96,6 +98,7 @@ export class SessionPanel {
   private voice: VoiceDictation;
   private effortPickerOpen = false;
   private permissionPickerOpen = false;
+  private fileSuggestions?: Promise<string[]>;
   /** Set once the page has loaded and asked for its content. */
   ready = false;
 
@@ -124,9 +127,12 @@ export class SessionPanel {
 
     const onRecord = (id: string, rec: LogRecord) => id === this.sessionId && this.onRecord(rec);
     const onChanged = (id: string) => id === this.sessionId && this.scheduleState();
+    // Another window rewrote the log: replay it from the start.
+    const onReloaded = (id: string) => id === this.sessionId && this.ready && this.init();
     this.manager.on('record', onRecord);
     this.manager.on('changed', onChanged);
-    this.listeners.push(() => this.manager.off('record', onRecord), () => this.manager.off('changed', onChanged));
+    this.manager.on('reloaded', onReloaded);
+    this.listeners.push(() => this.manager.off('record', onRecord), () => this.manager.off('changed', onChanged), () => this.manager.off('reloaded', onReloaded));
     this.updateTitle();
   }
 
@@ -273,7 +279,7 @@ export class SessionPanel {
 
   /** A message from the page (public so the smoke test can act like the page). */
   receive(m: Inbound) {
-    if (this.readOnly && !['ready', 'openAgent', 'openLink'].includes(m.type)) return;
+    if (this.readOnly && !['ready', 'openAgent', 'openLink', 'copyText'].includes(m.type)) return;
     switch (m.type) {
       case 'ready':
         return this.init();
@@ -304,6 +310,9 @@ export class SessionPanel {
         return;
       case 'openLink':
         return void this.openLink(m.href);
+      case 'copyText':
+        if (typeof m.text === 'string' && m.text) void vscode.env.clipboard.writeText(m.text);
+        return;
       case 'pickImages':
         return void this.pickImages();
       case 'changeEffort':
@@ -314,8 +323,30 @@ export class SessionPanel {
         return void this.manager.refreshUsage(this.sessionId, true);
       case 'voice':
         return void this.voice.toggle().catch((error: Error) => this.post({ type: 'voice', state: 'idle', error: error.message }));
+      case 'requestFiles':
+        return void this.sendFileSuggestions();
       case 'dropPaths':
         return this.attachPaths((m.uris ?? []).map((u) => (u.startsWith('file:') ? vscode.Uri.parse(u).fsPath : u)));
+    }
+  }
+
+  private async sendFileSuggestions() {
+    const cwd = this.manager.view(this.sessionId)?.cwd;
+    if (!cwd) return this.post({ type: 'files', files: [] });
+    if (!this.fileSuggestions) {
+      this.fileSuggestions = (async () => {
+        const exclude = '**/{.git,node_modules,out,dist,build,coverage,.next,.venv,venv,target}/**';
+        const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(vscode.Uri.file(cwd), '**/*'), exclude, 5000);
+        return uris
+          .map((uri) => path.relative(cwd, uri.fsPath).split(path.sep).join('/'))
+          .filter((file) => file && !file.startsWith('../') && !/[\r\n]/.test(file))
+          .sort((a, b) => a.localeCompare(b));
+      })();
+    }
+    try {
+      this.post({ type: 'files', files: await this.fileSuggestions });
+    } catch (error) {
+      this.post({ type: 'files', files: [], error: error instanceof Error ? error.message : String(error) });
     }
   }
 

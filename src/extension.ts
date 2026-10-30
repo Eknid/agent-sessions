@@ -7,6 +7,7 @@ import { PriceTable, Rates } from './core/pricing';
 import { AgentProvider, discoverModels, modelChoices, providerLabel } from './core/models';
 import { bundledCodex } from './core/executable';
 import { SessionManager } from './core/sessionManager';
+import { migrateLegacyStorage } from './core/storageMigration';
 import { MAIN, SessionView, UiState } from './core/sessionModel';
 import { MetricsViewProvider } from './ui/metricsView';
 import { listPastConversations, listPastCodexConversations } from './core/pastConversations';
@@ -50,7 +51,7 @@ function config() {
     additionalClaudeModels: c.get<string[]>('additionalClaudeModels', []),
     additionalCodexModels: c.get<string[]>('additionalCodexModels', []),
     defaultModel: c.get<string>('defaultModel', ''),
-    permissionMode: c.get<string>('permissionMode', 'default'),
+    permissionMode: c.get<string>('permissionMode', 'auto'),
     extraArgs: c.get<string[]>('extraArgs', []),
     notifications: c.get<boolean>('notifications', true),
     pricingOverrides: c.get<Record<string, Partial<Rates>>>('pricingOverrides', {}),
@@ -61,6 +62,8 @@ function config() {
 export function activate(context: vscode.ExtensionContext) {
   const cfg = config();
   const storageDir = context.globalStorageUri.fsPath;
+  try { migrateLegacyStorage(storageDir); }
+  catch (error) { void vscode.window.showErrorMessage(`Could not import previous Agent Sessions history: ${String(error)}`); }
   let claudePath = resolveExecutable('claude', cfg.claudePath);
   let codexPath = resolveExecutable('codex', cfg.codexPath);
   const mgr = new SessionManager({
@@ -69,6 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
     codexCommand: codexPath,
     codexExtraArgs: cfg.codexExtraArgs,
     codexApprovalPolicy: cfg.codexApprovalPolicy,
+    codexApprovalsReviewer: 'auto_review',
     codexSandbox: cfg.codexSandbox,
     extraArgs: cfg.extraArgs,
     prices: new PriceTable(cfg.pricingOverrides),
@@ -194,8 +198,8 @@ export function activate(context: vscode.ExtensionContext) {
     });
     adoptBoard(panel);
   }
-  context.subscriptions.push(
-    vscode.window.registerWebviewPanelSerializer(BOARD_VIEW_TYPE, {
+  for (const viewType of [BOARD_VIEW_TYPE, 'claudeSessions.board']) context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer(viewType, {
       async deserializeWebviewPanel(panel) {
         if (board) return panel.dispose();
         adoptBoard(panel);
@@ -203,8 +207,8 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  context.subscriptions.push(
-    vscode.window.registerWebviewPanelSerializer(PANEL_VIEW_TYPE, {
+  for (const viewType of [PANEL_VIEW_TYPE, 'claudeSessions.session']) context.subscriptions.push(
+    vscode.window.registerWebviewPanelSerializer(viewType, {
       async deserializeWebviewPanel(panel, saved: { sessionId?: string; owner?: string } | undefined) {
         const id = saved?.sessionId;
         const owner = saved?.owner ?? MAIN;
@@ -212,6 +216,8 @@ export function activate(context: vscode.ExtensionContext) {
         adopt(panel, id, owner);
       },
     }),
+  );
+  context.subscriptions.push(
     treeView.onDidChangeSelection((e) => {
       const n = e.selection[0];
       if (n?.sessionId) metrics.select(n.sessionId);
@@ -561,7 +567,7 @@ export function activate(context: vscode.ExtensionContext) {
       claudePath = resolveExecutable('claude', c.claudePath);
       codexPath = resolveExecutable('codex', c.codexPath);
       mgr.setCommand(claudePath, c.extraArgs);
-      mgr.setCodex(codexPath, c.codexExtraArgs, c.codexApprovalPolicy, c.codexSandbox);
+      mgr.setCodex(codexPath, c.codexExtraArgs, c.codexApprovalPolicy, c.codexSandbox, 'auto_review');
       if (e.affectsConfiguration('agentSessions.pricingOverrides')) mgr.setPrices(new PriceTable(c.pricingOverrides));
       if (e.affectsConfiguration('agentSessions.groupBy')) {
         tree.groupBy = c.groupBy;

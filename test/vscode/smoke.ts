@@ -44,6 +44,13 @@ export async function run(): Promise<void> {
 
   const mgr = api.manager;
   const cwd = vscode.workspace.workspaceFolders![0].uri.fsPath;
+  const imported = '11111111-1111-4111-8111-111111111111';
+  assert.ok(mgr.has(imported), 'session from the previous extension imported on activation');
+  api.openTab(imported);
+  await until('imported conversation rendered', () => Boolean(api.tab(imported)?.ready));
+  assert.ok(mgr.records(imported).some((r) => r.ev.message?.content === 'A message saved before the rename'));
+  api.tab(imported)!.panel.dispose();
+  step('legacy session imported and its transcript opened in a real webview');
   const id = mgr.create({ cwd, name: 'smoke', prompt: 'please ask permission' });
   await vscode.commands.executeCommand('agentSessions.open', id);
   await until('chat tab opened', () => chatTabs().some((t) => t.label.includes('smoke')));
@@ -51,6 +58,18 @@ export async function run(): Promise<void> {
   // `ready` comes from the page script itself: the CSP, marked and session.js all loaded.
   await until('page loaded and asked for its content', () => Boolean(tab()?.ready));
   step('chat tab opened, page ready: ' + chatTabs().map((t) => t.label).join(', '));
+
+  const fileMessages: any[] = [];
+  const initialWebview = tab().panel.webview as any;
+  const initialPost = initialWebview.postMessage.bind(initialWebview);
+  initialWebview.postMessage = (message: any) => {
+    if (message.type === 'files') fileMessages.push(message);
+    return initialPost(message);
+  };
+  tab().receive({ type: 'requestFiles' });
+  await until('@ file suggestions returned', () => fileMessages.length > 0);
+  assert.ok(fileMessages[0].files.includes('smoke-file.txt'), 'session folder files returned as relative paths');
+  step('@ file suggestions loaded from the session folder');
 
   await until('waiting for permission', () => mgr.view(id)?.uiState === 'waiting');
   await vscode.commands.executeCommand('agentSessions.board');
@@ -225,7 +244,7 @@ export async function run(): Promise<void> {
   } finally { globalThis.fetch = originalFetch; webview.postMessage = originalPost; helpers.forEach((d) => d.dispose()); }
   step('Voice button records, stops and returns a transcription without auto-sending');
 
-  await vscode.commands.executeCommand('workbench.view.extension.agentSessions');
+  await vscode.commands.executeCommand('workbench.view.extension.agentSessionsSidebar');
   await sleep(500);
   step('sidebar shown');
   // SMOKE_HOLD_MS keeps the window up, e.g. to take a screenshot of it.

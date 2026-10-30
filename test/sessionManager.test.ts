@@ -93,6 +93,8 @@ test('full lifecycle: permission round-trip, subagent, persistence, resume', asy
   ]);
 
   // A second manager on the same storage = VS Code reloaded: history replays, process is gone.
+  // The previous window's owner file goes with it (otherwise it is another open window).
+  fs.rmSync(path.join(tmp, 'store', 'owners', `${id}.json`));
   const m2 = manager();
   m2.load();
   const r = m2.view(id)!;
@@ -281,4 +283,55 @@ test('Claude effort changes use native controls, keep the conversation and show 
   assert.equal(restored.view(id)?.accountUsage?.label, 'Credits left 55.3%');
   assert.equal(restored.isAlive(id), false, 'Usage lookup must not resume a stopped conversation');
   assert.equal(restored.view(id)?.turns, 1);
+});
+
+test('another window follows a running session live and acts on it through the owner', async () => {
+  const storageDir = path.join(tmp, 'shared');
+  const a = new SessionManager({ storageDir, command: FAKE, env });
+  managers.push(a);
+  a.load();
+  const id = a.create({ cwd: tmp, name: 'shared', prompt: 'please ask permission' });
+  await waitFor(a, id, () => a.view(id)?.uiState === 'waiting', 'owner waiting');
+
+  // A second window opens while the first one runs the session: it must not end it.
+  const b = new SessionManager({ storageDir, command: FAKE, env });
+  managers.push(b);
+  b.load();
+  assert.equal(b.view(id)?.uiState, 'waiting');
+  assert.equal(b.isRemote(id), true);
+  assert.equal(a.view(id)?.uiState, 'waiting');
+  const seen: string[] = [];
+  b.on('record', (sid, rec) => sid === id && seen.push(rec.ev.type));
+
+  // B approves; A answers Claude; B sees the rest of the turn as it is written.
+  const requestId = b.view(id)!.pending[0].requestId;
+  assert.equal(b.allow(id, requestId), true);
+  await waitFor(a, id, () => a.view(id)?.uiState === 'done', 'owner done after remote approval');
+  await waitFor(b, id, () => b.view(id)?.uiState === 'done', 'mirror done');
+  assert.ok(seen.includes('control_response') && seen.includes('result'));
+  assert.equal(b.records(id).length, a.records(id).length);
+
+  // A message typed in B runs in A's process.
+  assert.equal(b.send(id, 'hello from b'), true);
+  await waitFor(b, id, () => b.records(id).some((r) => r.ev.type === 'assistant' && JSON.stringify(r.ev).includes('echo: hello from b')), 'reply in mirror');
+  assert.equal(b.isRemote(id), true);
+
+  // Sessions created in either window appear in the other; renames and removal follow.
+  const other = b.create({ cwd: tmp, name: 'from b' });
+  await waitFor(a, other, () => Boolean(a.view(other)), 'new session in owner', 3000).catch(() => undefined);
+  a.sync();
+  assert.equal(a.view(other)?.name, 'from b');
+  assert.equal(a.isRemote(other), true);
+  a.rename(id, 'renamed');
+  b.sync();
+  assert.equal(b.view(id)?.name, 'renamed');
+  b.remove(other);
+  a.sync();
+  assert.equal(a.view(other), undefined);
+
+  // Closing the owner ends the session for everyone.
+  await a.dispose();
+  await waitFor(b, id, () => b.view(id)?.state === 'exited', 'mirror sees exit');
+  b.sync();
+  assert.equal(b.isRemote(id), false);
 });

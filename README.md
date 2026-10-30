@@ -41,7 +41,7 @@ Voice dictation requires the Codex Audio helper installed with the official Code
 ```bash
 npm ci
 npm run package
-code --install-extension agent-sessions-0.11.7.vsix
+code --install-extension agent-sessions-0.11.8.vsix
 ```
 
 After installation, run **Developer: Reload Window**.
@@ -49,7 +49,7 @@ After installation, run **Developer: Reload Window**.
 ### From source
 
 ```bash
-git clone https://github.com/eknid-mucollari/agent-sessions.git
+git clone https://github.com/Eknid/agent-sessions.git
 cd agent-sessions
 npm ci
 npm test
@@ -76,6 +76,7 @@ Right-click a session for lifecycle actions such as **Copy Session ID**, **Fork 
 - Closing a chat tab does not stop its process.
 - Pasting or selecting images attaches them to the next message.
 - Typing `/` opens the commands and skills available for the active provider.
+- Typing `@` opens a searchable list of files in the session folder.
 - `/native` opens the same conversation in the provider's terminal interface.
 
 The extension handles common local commands such as `/help`, `/status`, `/cost`, `/resume`, `/permissions` and `/exit`. Provider-native operations and skills are forwarded through their supported APIs. Commands that require an interactive TUI remain available through `/native`.

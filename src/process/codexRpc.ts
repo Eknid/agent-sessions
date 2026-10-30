@@ -59,7 +59,7 @@ export class CodexRpc extends EventEmitter {
 
   async initialize() {
     const response = await this.request('initialize', {
-      clientInfo: { name: 'agent_sessions', title: 'Agent Sessions for VS Code', version: '0.11.7' },
+      clientInfo: { name: 'agent_sessions', title: 'Agent Sessions for VS Code', version: '0.11.10' },
       capabilities: { experimentalApi: true },
     });
     this.notify('initialized');

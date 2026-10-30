@@ -19,6 +19,8 @@
   let readOnly = false;
   let state = null;
   let commands = [];
+  let files = [];
+  let filesRequested = false;
   const nodes = new Map(); // item id → element
   const opened = new Map(); // tool id → user's open/closed choice
   const history = [];
@@ -27,7 +29,7 @@
   let attachments = []; // { mediaType, data, url }
   let pendingKey = '';
   let queueKey = '';
-  let popup = { items: [], sel: 0, open: false };
+  let popup = { items: [], sel: 0, open: false, kind: '', start: 0, end: 0, query: '' };
 
   // ---------- helpers ----------
   function h(tag, cls, text) {
@@ -230,6 +232,8 @@
       const el = render(it);
       el.dataset.id = it.id;
       const old = nodes.get(it.id);
+      // Leave unchanged rows in place, so text selected in them stays selected.
+      if (old && old.isEqualNode(el)) continue;
       if (old) old.replaceWith(el);
       else logWrap.insertBefore(el, busy.parentNode === logWrap ? busy : null);
       nodes.set(it.id, el);
@@ -520,7 +524,7 @@
     return c;
   }
 
-  // ---------- slash suggestions ----------
+  // ---------- slash commands and @file suggestions ----------
   function rank(c, q) {
     const n = c.name.toLowerCase();
     if (n === q) return 0;
@@ -529,7 +533,7 @@
     if (n.includes(q)) return 3;
     return -1;
   }
-  function matches(q) {
+  function commandMatches(q) {
     q = q.toLowerCase();
     return commands
       .map((c) => ({ c, r: rank(c, q) }))
@@ -537,27 +541,70 @@
       .sort((a, b) => a.r - b.r || (a.c.kind === b.c.kind ? 0 : a.c.kind === 'local' ? -1 : 1) || a.c.name.length - b.c.name.length || a.c.name.localeCompare(b.c.name))
       .map((x) => x.c);
   }
+  function fileMatches(q) {
+    q = q.toLowerCase();
+    return files
+      .map((file) => {
+        const lower = file.toLowerCase();
+        const name = lower.slice(lower.lastIndexOf('/') + 1);
+        const segments = lower.split('/');
+        const rank = !q ? 0 : name === q || lower === q ? 0 : name.startsWith(q) ? 1 : segments.some((part) => part.startsWith(q)) ? 2 : lower.includes(q) ? 3 : -1;
+        return { file, rank };
+      })
+      .filter((item) => item.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.file.length - b.file.length || a.file.localeCompare(b.file))
+      .slice(0, 100)
+      .map((item) => item.file);
+  }
+  function popupContext() {
+    const caret = $ta.selectionStart;
+    if (caret !== $ta.selectionEnd) return null;
+    const before = $ta.value.slice(0, caret);
+    const slash = /^\/(\S*)$/.exec(before);
+    if (slash && caret === $ta.value.length) return { kind: 'command', query: slash[1], start: 0, end: caret };
+    const mention = /(?:^|[\s([{])@([^\s@]*)$/.exec(before);
+    if (!mention) return null;
+    const start = caret - mention[1].length - 1;
+    return { kind: 'file', query: mention[1], start, end: caret };
+  }
   function updatePopup() {
-    const m = /^\/(\S*)$/.exec($ta.value);
-    if (!m) return closePopup();
-    popup.items = matches(m[1]);
+    const context = popupContext();
+    if (!context) return closePopup();
+    if (context.kind === 'file' && !filesRequested) {
+      filesRequested = true;
+      post({ type: 'requestFiles' });
+    }
+    const queryKey = context.kind + ':' + context.query;
+    if (queryKey !== popup.query) popup.sel = 0;
+    popup.kind = context.kind;
+    popup.start = context.start;
+    popup.end = context.end;
+    popup.query = queryKey;
+    popup.items = context.kind === 'command' ? commandMatches(context.query) : fileMatches(context.query);
     popup.sel = Math.min(popup.sel, Math.max(0, popup.items.length - 1));
     if (!popup.items.length) return closePopup();
     popup.open = true;
     $popup.hidden = false;
     $popup.textContent = '';
-    popup.items.forEach((c, i) => {
+    popup.items.forEach((item, i) => {
       const o = h('div', 'opt' + (i === popup.sel ? ' sel' : ''));
-      o.appendChild(h('span', 'nm', '/' + c.name));
-      o.appendChild(h('span', 'ds', c.description));
-      if (c.kind === 'local') o.appendChild(h('span', 'local', 'extension'));
-      if (c.kind === 'skill') o.appendChild(h('span', 'local', 'skill'));
-      if (c.kind === 'terminal') o.appendChild(h('span', 'local', 'terminal'));
+      if (popup.kind === 'file') {
+        const cut = item.lastIndexOf('/');
+        o.appendChild(h('span', 'nm', cut >= 0 ? item.slice(cut + 1) : item));
+        o.appendChild(h('span', 'ds', cut >= 0 ? item.slice(0, cut + 1) : './'));
+        o.appendChild(h('span', 'local', 'file'));
+        o.title = item;
+      } else {
+        o.appendChild(h('span', 'nm', '/' + item.name));
+        o.appendChild(h('span', 'ds', item.description));
+        if (item.kind === 'local') o.appendChild(h('span', 'local', 'extension'));
+        if (item.kind === 'skill') o.appendChild(h('span', 'local', 'skill'));
+        if (item.kind === 'terminal') o.appendChild(h('span', 'local', 'terminal'));
+      }
       o.onmousedown = (e) => {
         e.preventDefault();
         popup.sel = i;
-        complete();
-        $ta.value += ' ';
+        complete(true);
         $ta.focus();
       };
       $popup.appendChild(o);
@@ -567,14 +614,20 @@
   function closePopup() {
     popup.open = false;
     popup.sel = 0;
+    popup.kind = '';
     $popup.hidden = true;
   }
-  function complete() {
-    const c = popup.items[popup.sel];
-    if (c) $ta.value = '/' + c.name;
+  function complete(addSpace) {
+    const item = popup.items[popup.sel];
+    if (!item) return;
+    const value = popup.kind === 'command' ? '/' + item.name : '@' + item;
+    const suffix = addSpace && $ta.value[popup.end] !== ' ' ? ' ' : '';
+    $ta.value = $ta.value.slice(0, popup.start) + value + suffix + $ta.value.slice(popup.end);
+    const caret = popup.start + value.length + suffix.length;
     closePopup();
     autosize();
     updateSend();
+    $ta.setSelectionRange(caret, caret);
   }
 
   // ---------- input keys ----------
@@ -595,16 +648,14 @@
       }
       if (e.key === 'Tab') {
         e.preventDefault();
-        complete();
-        $ta.value += ' ';
+        complete(true);
         return;
       }
       if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        const exact = $ta.value === '/' + popup.items[popup.sel]?.name;
-        complete();
+        const exact = popup.kind === 'command' && $ta.value === '/' + popup.items[popup.sel]?.name;
+        complete(!exact || popup.kind === 'file');
         if (exact) send();
-        else $ta.value += ' ';
         return;
       }
       if (e.key === 'Escape') {
@@ -832,19 +883,31 @@
     }
   });
 
+  // The extension writes the clipboard: recent VS Code versions no longer let a webview's
+  // own copy (keyboard, menu or navigator.clipboard) reach the system clipboard reliably.
   function copy(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-    } else fallbackCopy(text);
+    if (text) post({ type: 'copyText', text });
   }
-  function fallbackCopy(text) {
-    const ta = h('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
+  /** Text selected in the transcript, or '' when the selection is in an input. */
+  function selectedText() {
+    const el = document.activeElement;
+    if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return '';
+    const sel = window.getSelection();
+    return sel && !sel.isCollapsed ? sel.toString() : '';
   }
+  document.addEventListener('copy', (e) => {
+    const text = selectedText();
+    if (!text) return;
+    if (e.clipboardData) {
+      e.clipboardData.setData('text/plain', text);
+      e.preventDefault();
+    }
+    copy(text);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'c') return;
+    copy(selectedText());
+  });
   function lightbox(src) {
     const box = h('div', 'lightbox');
     const img = h('img');
@@ -897,6 +960,10 @@
         return;
       case 'commands':
         commands = m.commands || [];
+        if (document.activeElement === $ta) updatePopup();
+        return;
+      case 'files':
+        files = m.files || [];
         if (document.activeElement === $ta) updatePopup();
         return;
       case 'attach':

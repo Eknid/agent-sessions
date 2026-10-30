@@ -65,6 +65,10 @@ test('Codex Approve for me sets the native reviewer, retains its sandbox, and pe
   const id = m.create({ cwd: tmp, provider: 'codex', prompt: 'first' });
   await until(() => m.view(id)?.turns === 1);
   const threadId = m.stored(id)!.conversationId;
+  assert.equal(m.view(id)?.permissions?.label, 'Approve for me');
+  assert.equal(m.stored(id)?.codexPermissions?.approvalsReviewer, 'auto_review');
+  await m.changePermissions(id, 'ask');
+  assert.equal(m.view(id)?.permissions?.label, 'Ask for approval');
   await m.changePermissions(id, 'auto');
   assert.equal(m.view(id)?.permissions?.label, 'Approve for me');
   const update = messages(log).find((ev) => ev.method === 'thread/settings/update' && ev.params.approvalsReviewer === 'auto_review');
