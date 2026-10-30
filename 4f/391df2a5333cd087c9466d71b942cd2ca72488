@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_c8fab1f7ceac9d::t_c9792e569c9c41 5-10
+package-lock.json
+  s_c8fab1f7ceac9d::t_ebc3a1ad551b47 3,9
+package.json
+  s_c8fab1f7ceac9d::t_14c300feb98c9c 5
+scripts/preview-board.js
+  s_c8fab1f7ceac9d::t_5c1e4dadcafa09 3,37-38
+src/core/sessionManager.ts
+  s_c8fab1f7ceac9d::t_e082d70f5f5b02 193,236-237,241-249,275,310,312,316-403,455-461,463-464,466-468,594,661-662,877-878,919,948,981,1015,1138,1143,1278,1287,1297-1303
+test/sessionManager.test.ts
+  s_c8fab1f7ceac9d::t_622834d2be65d3 338-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f391df2a5333cd087c9466d71b942cd2ca72488",
+  "prompts": {},
+  "sessions": {
+    "s_c8fab1f7ceac9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "884b4383-beae-43df-ae6f-1d538771b9be",
+        "model": "unknown"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
