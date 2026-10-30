@@ -1,0 +1,67 @@
+resources/session/session.css
+  s_2d70e07a07ef95::t_c7ba460f4c63c7 108,268,277
+resources/session/session.js
+  s_2d70e07a07ef95::t_09401488788dd6 22-23,32,235-236,527,536,544-569,571-583,589,591-603,607,617,620-626,630,651,656-657,886-887,889-910,965-968
+scripts/restore-smoke.js
+  s_512fe038a70712::t_33b16641ab7475 1-79
+scripts/smoke.sh
+  s_512fe038a70712::t_26e71bcd2832a1 8-16
+src/core/storageMigration.ts
+  s_512fe038a70712::t_31ccbe005fdd37 1-40
+src/extension.ts
+  s_512fe038a70712::t_633774090a18a7 10,54,65-66,75,201-202,210-211,219-220,570
+src/process/codexRpc.ts
+  s_2d70e07a07ef95::t_dbb24cfe433b40 62
+src/ui/sessionPanel.ts
+  s_2d70e07a07ef95::t_aaac781231c998 81-82,101,130-131,134-135,282,313-315,326-327,333-352
+test/storageMigration.test.ts
+  s_512fe038a70712::t_3f38b171440de3 1-49
+test/vscode/smoke.ts
+  s_512fe038a70712::t_1d9dd62acaa89c 47-53,62-73,247
+README.md
+  s_1fe1bd3c63995f::t_f05df1cdaeab63 44,52,79
+test/permissions.test.ts
+  s_1fe1bd3c63995f::t_f14fc5a4649827 68-71
+CHANGELOG.md
+  s_2d70e07a07ef95::t_05af49273bd71d 5-21
+package-lock.json
+  s_2d70e07a07ef95::t_f1f0032d713166 3,9
+package.json
+  s_2d70e07a07ef95::t_225ee57d661018 5,10,12,14,34-36,42,49,64,88,392
+src/core/sessionManager.ts
+  s_2d70e07a07ef95::t_137419d0b2a16a 38,120-123,126-148,154-155,160-169,179-186,193-194,210,215,243-254,264-268,272-294,297,299-300,304-327,329,334,337-346,355-367,374-375,379-381,400-663,680,692-693,701-708,740,764,773,776-777,779,815-816,818-819,822,830,848,862,881,906,915,981-983,1002,1004-1005,1012-1014,1022-1029,1038,1043,1079,1083,1090,1094,1104,1109,1114-1115,1124-1125,1134-1135,1144,1149-1151,1155-1166,1178,1187,1197,1208-1214
+test/sessionManager.test.ts
+  s_2d70e07a07ef95::t_a76815da9c8b4a 96-97,287-337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac51ec63e8ea938fa97900255ea73e3112412ab9",
+  "prompts": {},
+  "sessions": {
+    "s_1fe1bd3c63995f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1226b-93a8-7a92-a059-e15a61633324",
+        "model": "unknown"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    },
+    "s_2d70e07a07ef95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80a52b4c-2b4c-456a-bc40-54a1f4c6398c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    },
+    "s_512fe038a70712": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a14eb6-c4c6-78d3-936f-3d400aec9e28",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
