@@ -190,6 +190,7 @@ export class SessionManager extends EventEmitter {
     this.prices = opts.prices ?? new PriceTable();
     this.now = opts.now ?? Date.now;
     fs.mkdirSync(this.logDir, { recursive: true });
+    fs.mkdirSync(this.metaDir, { recursive: true });
     fs.mkdirSync(this.ownerDir, { recursive: true });
     fs.mkdirSync(this.inboxDir, { recursive: true });
   }
@@ -232,8 +233,18 @@ export class SessionManager extends EventEmitter {
     return path.join(this.opts.storageDir, 'logs');
   }
 
-  private get indexPath() {
+  /** The single shared index used up to 0.11.10: now only read, to import what it lists. */
+  private get legacyIndexPath() {
     return path.join(this.opts.storageDir, 'sessions.json');
+  }
+
+  /** One metadata file per session, so no window can overwrite another window's sessions. */
+  private get metaDir() {
+    return path.join(this.opts.storageDir, 'sessions');
+  }
+
+  private metaPath(id: string) {
+    return path.join(this.metaDir, `${id}.json`);
   }
 
   private logPath(id: string) {
@@ -261,6 +272,7 @@ export class SessionManager extends EventEmitter {
     } catch {
       /* first run */
     }
+    this.recover();
     const owners = this.readOwners();
     for (const s of this.readIndex()) {
       const live = this.loadSession(s, owners);
@@ -295,12 +307,100 @@ export class SessionManager extends EventEmitter {
   }
 
   private readIndex(): StoredSession[] {
+    let names: string[] = [];
     try {
-      const list = JSON.parse(fs.readFileSync(this.indexPath, 'utf8'));
-      return Array.isArray(list) ? list : [];
+      names = fs.readdirSync(this.metaDir);
     } catch {
       return [];
     }
+    const list: StoredSession[] = [];
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const s: StoredSession = JSON.parse(fs.readFileSync(path.join(this.metaDir, name), 'utf8'));
+        if (s?.id === name.slice(0, -5)) list.push(s);
+      } catch {
+        /* being replaced */
+      }
+    }
+    return list;
+  }
+
+  /**
+   * Brings back sessions whose metadata is missing: those only listed in the old shared index,
+   * then any log left without an entry (older versions let one window drop another's sessions).
+   */
+  private recover() {
+    const known = new Set(this.readIndex().map((s) => s.id));
+    const valid = (id: unknown): id is string => typeof id === 'string' && /^[a-zA-Z0-9-]+$/.test(id);
+    const write = (s: StoredSession) => {
+      try {
+        this.writeMeta(s);
+        known.add(s.id);
+      } catch (err) {
+        this.emit('storageError', err);
+      }
+    };
+    let legacy: StoredSession[] = [];
+    try {
+      const list = JSON.parse(fs.readFileSync(this.legacyIndexPath, 'utf8'));
+      if (Array.isArray(list)) legacy = list;
+    } catch {
+      /* none */
+    }
+    // A session removed since has no log any more: it must not come back.
+    for (const s of legacy) if (valid(s?.id) && !known.has(s.id) && fs.existsSync(this.logPath(s.id))) write(s);
+    let logs: string[] = [];
+    try {
+      logs = fs.readdirSync(this.logDir);
+    } catch {
+      return;
+    }
+    for (const name of logs) {
+      const id = name.slice(0, -'.ndjson'.length);
+      if (!name.endsWith('.ndjson') || !valid(id) || known.has(id)) continue;
+      const s = this.fromLog(id);
+      if (s) write(s);
+    }
+  }
+
+  /** Metadata rebuilt from a log alone, filed in the archive. Undefined when the log is too thin. */
+  private fromLog(id: string): StoredSession | undefined {
+    const { records } = this.readLog(id);
+    let cwd: string | undefined;
+    let provider: AgentProvider = 'claude';
+    let conversationId: string | undefined;
+    let model: string | undefined;
+    let forkedFrom: string | undefined;
+    let prompt: string | undefined;
+    for (const { dir, ev } of records) {
+      if (dir === 'meta' && ev.type === 'spawn' && /codex/i.test(path.basename(String(ev.command ?? '')))) provider = 'codex';
+      if (dir === 'meta' && ev.type === 'fork' && typeof ev.from === 'string') forkedFrom ??= ev.from;
+      if (dir === 'in' && ev.type === 'system' && ev.subtype === 'init') {
+        if (typeof ev.cwd === 'string') cwd ??= ev.cwd;
+        if (ev.provider === 'codex') provider = 'codex';
+        if (typeof ev.conversation_id === 'string') conversationId ??= ev.conversation_id;
+        if (typeof ev.model === 'string') model ??= ev.model;
+      }
+      if (dir === 'out' && ev.type === 'user' && prompt === undefined) {
+        const content = ev.message?.content;
+        const text = typeof content === 'string' ? content
+          : Array.isArray(content) ? content.map((c: any) => (c?.type === 'text' ? c.text : '')).join(' ') : '';
+        prompt = text.trim().split('\n')[0].trim();
+      }
+    }
+    if (!cwd || prompt === undefined) return undefined;
+    return {
+      id,
+      provider,
+      conversationId: provider === 'codex' ? conversationId : undefined,
+      name: prompt.slice(0, 60) || `${path.basename(cwd)}-${id.slice(0, 4)}`,
+      cwd,
+      createdAt: records[0]?.t ?? this.now(),
+      model,
+      forkedFrom,
+      archived: true,
+    };
   }
 
   /** Parses the complete lines of a log from `from`; `bytes` ends after the last complete line. */
@@ -352,21 +452,20 @@ export class SessionManager extends EventEmitter {
     return m;
   }
 
+  private writeMeta(s: StoredSession) {
+    const file = this.metaPath(s.id);
+    const tmp = `${file}.${this.instance}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
+    fs.renameSync(tmp, file);
+  }
+
   /**
-   * Writes one session's entry (or drops `removeId`) into the index on disk. Other windows
-   * share the file, so their entries are kept as they are on disk.
+   * Writes one session's metadata. Only `created` may add a file: a missing one means another
+   * window removed the session, which must not come back.
    */
-  private saveIndex(s?: Live, removeId?: string) {
-    let list = this.readIndex();
-    if (s) {
-      const i = list.findIndex((e) => e.id === s.stored.id);
-      if (i >= 0) list[i] = s.stored;
-      else list.push(s.stored);
-    }
-    if (removeId) list = list.filter((e) => e.id !== removeId);
-    const tmp = `${this.indexPath}.${this.instance}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
-    fs.renameSync(tmp, this.indexPath);
+  private saveMeta(s: Live, created = false) {
+    if (s.removed || (!created && !fs.existsSync(this.metaPath(s.stored.id)))) return;
+    this.writeMeta(s.stored);
   }
 
   private append(s: Live, dir: LogRecord['dir'], ev: StreamEvent) {
@@ -492,7 +591,7 @@ export class SessionManager extends EventEmitter {
         /* polling still catches up */
       }
     };
-    on(this.opts.storageDir, () => this.scheduleSync());
+    on(this.metaDir, () => this.scheduleSync());
     on(this.ownerDir, () => this.scheduleSync());
     on(this.inboxDir, () => this.scheduleSync());
     on(this.logDir, (name) => {
@@ -559,8 +658,8 @@ export class SessionManager extends EventEmitter {
       this.emit('changed', entry.id);
     }
     for (const [id, s] of this.sessions) {
-      if (onDisk.has(id)) continue;
-      // Removed in another window. A session created here is always written to the index first.
+      // Removed in another window only when its file is gone, not when it could not be read.
+      if (onDisk.has(id) || fs.existsSync(this.metaPath(id))) continue;
       s.removed = true;
       s.proc?.kill();
       this.sessions.delete(id);
@@ -775,8 +874,9 @@ export class SessionManager extends EventEmitter {
     this.sessions.set(id, live);
     // Claimed before other windows can see it, so none of them takes the new log as abandoned.
     this.claim(live);
+    // Metadata first: a log without it is taken for one an older version lost.
+    this.saveMeta(live, true);
     fs.writeFileSync(this.logPath(id), '');
-    this.saveIndex(live);
     this.emit('listChanged');
     this.spawn(live, o.resumeId ? 'resume' : 'new');
     if (o.prompt?.trim()) this.send(id, o.prompt);
@@ -816,10 +916,10 @@ export class SessionManager extends EventEmitter {
     const live: Live = { stored, model: this.replay(stored, records), records, stderrLines: 0, lastUi: 'done', queue: [], offset: Buffer.byteLength(text) };
     this.sessions.set(id, live);
     this.claim(live);
+    this.saveMeta(live, true);
     fs.writeFileSync(this.logPath(id), text);
     this.append(live, 'meta', { type: 'fork', from: parentId, fromName: p.name });
     live.lastUi = live.model.uiState();
-    this.saveIndex(live);
     this.emit('listChanged');
     this.spawn(live, 'fork');
     return id;
@@ -845,7 +945,7 @@ export class SessionManager extends EventEmitter {
     await this.stopAndWait(id);
     if (s.removed) return;
     s.stored.model = model.trim();
-    this.saveIndex(s);
+    this.saveMeta(s);
     this.resume(id);
   }
 
@@ -878,7 +978,7 @@ export class SessionManager extends EventEmitter {
       if (settings) s.stored.codexPermissions = settings;
       else s.stored.permissionMode = claudePermissionView(mode).value;
       s.permissionView = settings ? codexPermissionView(settings) : claudePermissionView(mode);
-      this.saveIndex(s);
+      this.saveMeta(s);
       this.emit('changed', id);
     });
     s.permissionPending = pending;
@@ -912,7 +1012,7 @@ export class SessionManager extends EventEmitter {
       } else if (proc instanceof CodexProcess && proc.alive) await proc.setEffort(effort);
       if (s.removed) return;
       s.stored.effort = effort;
-      this.saveIndex(s);
+      this.saveMeta(s);
       this.emit('changed', id);
     })();
     s.effortPending = pending;
@@ -1035,12 +1135,12 @@ export class SessionManager extends EventEmitter {
     if (s.stored.provider !== 'codex' && ev.type === 'system' && ev.subtype === 'init' && typeof ev.permissionMode === 'string') {
       s.stored.permissionMode = claudePermissionView(ev.permissionMode).value;
       s.permissionView = claudePermissionView(ev.permissionMode);
-      this.saveIndex(s);
+      this.saveMeta(s);
     }
     if (s.stored.provider === 'codex' && ev.type === 'system' && ev.subtype === 'init' && ev.conversation_id) {
       s.stored.conversationId = ev.conversation_id;
       if (ev.model) s.stored.model = ev.model;
-      this.saveIndex(s);
+      this.saveMeta(s);
     }
     this.append(s, 'in', ev);
     if (ev.type === 'result') void this.refreshUsage(s.stored.id, true);
@@ -1175,7 +1275,7 @@ export class SessionManager extends EventEmitter {
     if (!s || Boolean(s.stored.archived) === archived) return;
     s.stored.archived = archived || undefined;
     if (archived) s.proc?.kill();
-    this.saveIndex(s);
+    this.saveMeta(s);
     this.emit('listChanged');
   }
 
@@ -1184,7 +1284,7 @@ export class SessionManager extends EventEmitter {
     if (!s || !name.trim()) return;
     s.stored.name = name.trim();
     s.model.rename(s.stored.name);
-    this.saveIndex(s);
+    this.saveMeta(s);
     this.emit('changed', id);
   }
 
@@ -1194,11 +1294,13 @@ export class SessionManager extends EventEmitter {
     s.removed = true;
     s.proc?.kill();
     this.sessions.delete(id);
-    this.saveIndex(undefined, id);
-    try {
-      fs.unlinkSync(this.logPath(id));
-    } catch {
-      /* already gone */
+    // The log goes first: metadata without a log is harmless, a log without metadata is recovered.
+    for (const file of [this.logPath(id), this.metaPath(id)]) {
+      try {
+        fs.unlinkSync(file);
+      } catch {
+        /* already gone */
+      }
     }
     this.emit('listChanged');
   }

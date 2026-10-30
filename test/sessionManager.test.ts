@@ -335,3 +335,54 @@ test('another window follows a running session live and acts on it through the o
   b.sync();
   assert.equal(b.isRemote(id), false);
 });
+
+test('windows never drop each other\'s sessions, and lost ones come back from their logs', async () => {
+  const storageDir = path.join(tmp, 'concurrent');
+  const a = new SessionManager({ storageDir, command: FAKE, env });
+  const b = new SessionManager({ storageDir, command: FAKE, env });
+  managers.push(a, b);
+  a.load();
+  b.load();
+  // Both windows write before either syncs: neither may lose the other's session.
+  const fromA = a.create({ cwd: tmp, name: 'same name' });
+  const fromB = b.create({ cwd: tmp, name: 'same name' });
+  a.archive(fromA);
+  b.rename(fromB, 'renamed in b');
+  a.sync();
+  b.sync();
+  for (const m of [a, b]) {
+    assert.equal(m.view(fromA)?.archived, true);
+    assert.equal(m.view(fromB)?.name, 'renamed in b');
+  }
+  // Removal sticks even when the other window saves the session afterwards.
+  a.remove(fromA);
+  b.rename(fromA, 'too late');
+  b.sync();
+  assert.equal(b.view(fromA), undefined);
+  await a.dispose();
+  await b.dispose();
+
+  // An entry only in the old shared index, a log whose entry was lost, a removed session.
+  const listed = 'listed-0000';
+  const orphan = 'orphan-0000';
+  fs.writeFileSync(path.join(storageDir, 'sessions.json'), JSON.stringify([
+    { id: listed, name: 'Listed', cwd: tmp, createdAt: 1, provider: 'claude' },
+    { id: fromA, name: 'same name', cwd: tmp, createdAt: 1, provider: 'claude' },
+  ]));
+  fs.writeFileSync(path.join(storageDir, 'logs', `${listed}.ndjson`), '');
+  const rec = (dir: string, ev: object) => JSON.stringify({ t: 5, dir, ev }) + '\n';
+  fs.writeFileSync(path.join(storageDir, 'logs', `${orphan}.ndjson`),
+    rec('meta', { type: 'spawn', command: '/bin/claude', args: [] })
+    + rec('in', { type: 'system', subtype: 'init', cwd: tmp, model: 'claude-opus-5-5' })
+    + rec('out', { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'Fix the empty Iceberg files\nin the CLI' }] } }));
+  const c = new SessionManager({ storageDir, command: FAKE, env });
+  managers.push(c);
+  c.load();
+  assert.equal(c.view(listed)?.name, 'Listed');
+  assert.equal(c.view(fromA), undefined);
+  const recovered = c.view(orphan);
+  assert.equal(recovered?.name, 'Fix the empty Iceberg files');
+  assert.equal(recovered?.archived, true);
+  assert.equal(recovered?.cwd, tmp);
+  assert.equal(c.stored(orphan)?.model, 'claude-opus-5-5');
+});

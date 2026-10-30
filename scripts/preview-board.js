@@ -1,6 +1,6 @@
 // Renders the sessions board outside VS Code, so its HTML/CSS/JS can be checked in a browser.
 // Usage (after `npx tsc -p .`): node scripts/preview-board.js [storageDir] > out/preview-board.html
-// storageDir is the extension's global storage (sessions.json + logs/); it is only read.
+// storageDir is the extension's global storage (sessions/ + logs/); it is only read.
 // Two fixture sessions are added, one running and one waiting on a permission.
 'use strict';
 const fs = require('fs');
@@ -34,7 +34,8 @@ function view(meta, records, until) {
 const views = [];
 const dir = process.argv[2];
 if (dir) {
-  const index = JSON.parse(fs.readFileSync(path.join(dir, 'sessions.json'), 'utf8'));
+  const meta = path.join(dir, 'sessions');
+  const index = fs.readdirSync(meta).filter((n) => n.endsWith('.json')).map((n) => JSON.parse(fs.readFileSync(path.join(meta, n), 'utf8')));
   for (const s of index) {
     const log = path.join(dir, 'logs', s.id + '.ndjson');
     if (fs.existsSync(log)) views.push(view({ ...s, requestedModel: s.model }, readLog(log)));

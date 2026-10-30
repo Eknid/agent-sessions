@@ -2,6 +2,12 @@
 
 All notable changes to Agent Sessions are documented in this file.
 
+## 0.11.11 — 2026-10-30
+
+- Fixed sessions disappearing from the list when several VS Code windows were open: each session now has its own metadata file, so one window can no longer overwrite the sessions of another.
+- Sessions lost this way come back on the next start, rebuilt from their logs and filed in the archive.
+- A session removed in one window no longer reappears when another window saves it.
+
 ## 0.11.10 — 2026-10-30
 
 - Fixed copying agent output from session tabs on recent VS Code versions: selected text and code-block **Copy** now go through the VS Code clipboard.
