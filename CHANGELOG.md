@@ -2,6 +2,11 @@
 
 All notable changes to Agent Sessions are documented in this file.
 
+## 0.11.12 — 2026-11-02
+
+- The old shared session index is imported only once, so a window still running an older version can no longer change archived states or drop sessions afterwards.
+- A warning asks to reload any VS Code window that still runs an older version of the extension.
+
 ## 0.11.11 — 2026-10-30
 
 - Fixed sessions disappearing from the list when several VS Code windows were open: each session now has its own metadata file, so one window can no longer overwrite the sessions of another.

@@ -385,4 +385,14 @@ test('windows never drop each other\'s sessions, and lost ones come back from th
   assert.equal(recovered?.archived, true);
   assert.equal(recovered?.cwd, tmp);
   assert.equal(c.stored(orphan)?.model, 'claude-opus-5-5');
+
+  // The old index is read once; an older window writing it again is reported, not trusted.
+  assert.equal(fs.existsSync(path.join(storageDir, 'sessions.json')), false);
+  let warned = 0;
+  c.on('outdatedWindow', () => warned++);
+  fs.writeFileSync(path.join(storageDir, 'sessions.json'), JSON.stringify([{ ...c.stored(listed), archived: true }]));
+  c.sync();
+  c.sync();
+  assert.equal(warned, 1);
+  assert.equal(c.view(listed)?.archived, undefined);
 });

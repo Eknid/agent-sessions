@@ -153,6 +153,8 @@ export interface ManagerEvents {
   transition: (id: string, from: UiState, to: UiState, view: SessionView) => void;
   /** The log was rewritten by another window: tabs must replay it from the start. */
   reloaded: (id: string) => void;
+  /** A window running a version before 0.11.11 rewrote the old shared index. */
+  outdatedWindow: () => void;
 }
 
 const MAX_STDERR_LINES = 200;
@@ -184,6 +186,7 @@ export class SessionManager extends EventEmitter {
   private fullSync = false;
   private dirtyLogs = new Set<string>();
   private disposed = false;
+  private warnedOutdated = false;
 
   constructor(private opts: ManagerOptions) {
     super();
@@ -350,6 +353,12 @@ export class SessionManager extends EventEmitter {
     }
     // A session removed since has no log any more: it must not come back.
     for (const s of legacy) if (valid(s?.id) && !known.has(s.id) && fs.existsSync(this.logPath(s.id))) write(s);
+    // Read once: a window of an older version may rewrite it later from a stale list.
+    try {
+      fs.renameSync(this.legacyIndexPath, `${this.legacyIndexPath}.imported`);
+    } catch {
+      /* none */
+    }
     let logs: string[] = [];
     try {
       logs = fs.readdirSync(this.logDir);
@@ -676,6 +685,10 @@ export class SessionManager extends EventEmitter {
       if (!owner && s.model.state !== 'exited' && this.abandoned(s)) this.append(s, 'meta', { type: 'exit', reason: 'VS Code window closed' });
     }
     if (listChanged) this.emit('listChanged');
+    if (!this.warnedOutdated && fs.existsSync(this.legacyIndexPath)) {
+      this.warnedOutdated = true;
+      this.emit('outdatedWindow');
+    }
   }
 
   /** A log nobody owns that has not moved for a while: the window that ran it is gone. */

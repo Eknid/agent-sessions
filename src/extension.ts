@@ -272,6 +272,8 @@ export function activate(context: vscode.ExtensionContext) {
   mgr.on('changed', onChanged);
   mgr.on('listChanged', onList);
   mgr.on('transition', (id, from, to, v) => void notify(id, from, to, v));
+  mgr.on('outdatedWindow', () => void vscode.window.showWarningMessage(
+    'Another VS Code window still runs an older Agent Sessions, which can undo archiving and drop sessions. Reload that window (Developer: Reload Window).'));
 
   // Uptime in tooltips and the metrics card ticks on its own; descriptions refresh every 30 s.
   const tick = setInterval(() => {
