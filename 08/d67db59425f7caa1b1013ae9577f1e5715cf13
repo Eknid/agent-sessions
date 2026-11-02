@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_c8fab1f7ceac9d::t_fc64d6f28192b2 5-9
+package-lock.json
+  s_c8fab1f7ceac9d::t_0fb6cc18027df8 3,9
+package.json
+  s_c8fab1f7ceac9d::t_d76e90ae913aa3 5
+src/core/sessionManager.ts
+  s_c8fab1f7ceac9d::t_39627324926e91 156-157,189,356-361,688-691
+src/extension.ts
+  s_c8fab1f7ceac9d::t_b133e4ab814e09 275-276
+test/sessionManager.test.ts
+  s_c8fab1f7ceac9d::t_eb95b8f86b5eaf 388-397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08d67db59425f7caa1b1013ae9577f1e5715cf13",
+  "prompts": {},
+  "sessions": {
+    "s_c8fab1f7ceac9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "884b4383-beae-43df-ae6f-1d538771b9be",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
