@@ -888,12 +888,149 @@
   function copy(text) {
     if (text) post({ type: 'copyText', text });
   }
-  /** Text selected in the transcript, or '' when the selection is in an input. */
+  /**
+   * Text selected in the transcript, or '' when the selection is in an input. The VS Code
+   * clipboard holds plain text only, so the selection is written back as Markdown: lists,
+   * code, emphasis, links and tables keep their shape when pasted elsewhere.
+   */
   function selectedText() {
     const el = document.activeElement;
     if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return '';
     const sel = window.getSelection();
-    return sel && !sel.isCollapsed ? sel.toString() : '';
+    if (!sel || sel.isCollapsed) return '';
+    const plain = sel.toString();
+    const r = sel.getRangeAt(0);
+    // Words inside one paragraph or code line: nothing to format.
+    if (r.startContainer === r.endContainer && r.startContainer.nodeType === Node.TEXT_NODE) return plain;
+    try {
+      const anc = r.commonAncestorContainer;
+      const start = anc.nodeType === Node.ELEMENT_NODE ? anc : anc.parentElement;
+      const root = start.closest('.md') || start;
+      fences = [];
+      const out = unfence(tidy(mdBlock(root, r, false)));
+      return out.trim() ? out : plain;
+    } catch {
+      return plain;
+    }
+  }
+
+  // ---------- selection → Markdown ----------
+  const BLOCK = /^(P|DIV|H[1-6]|UL|OL|LI|PRE|BLOCKQUOTE|TABLE|HR|DETAILS|SUMMARY|SECTION)$/;
+  // Code blocks wait as placeholders so tidying never touches their blank lines or spaces.
+  let fences = [];
+  function unfence(s) {
+    return s.replace(/^([^\n\u0000]*)\u0000(\d+)\u0000/gm, (_, before, i) => {
+      const ind = /^[> ]*$/.test(before) ? before : ' '.repeat(before.length);
+      return before + fences[+i].split('\n').map((l, k) => (k && l ? ind + l : l)).join('\n');
+    });
+  }
+  const tidy = (s) => s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\s+$/g, '');
+  function hidden(el) {
+    if (el.matches('button, .copy, .chev, input:not([type=checkbox])')) return true;
+    if (typeof el.checkVisibility === 'function') return !el.checkVisibility();
+    return getComputedStyle(el).display === 'none';
+  }
+  /** The part of a text node inside the range. */
+  function clip(node, r) {
+    let s = node.nodeValue;
+    const end = node === r.endContainer ? r.endOffset : s.length;
+    const start = node === r.startContainer ? r.startOffset : 0;
+    return s.slice(start, end);
+  }
+  /** The selected raw text below `el` (for code), skipping buttons and hidden parts. */
+  function rawText(el, r) {
+    let s = '';
+    for (const c of el.childNodes) {
+      if (!r.intersectsNode(c)) continue;
+      if (c.nodeType === Node.TEXT_NODE) s += clip(c, r);
+      else if (c.nodeType === Node.ELEMENT_NODE && !hidden(c)) s += c.tagName === 'BR' ? '\n' : rawText(c, r);
+    }
+    return s;
+  }
+  function fence(body, lang) {
+    let f = '```';
+    while (body.includes(f)) f += '`';
+    fences.push(f + (lang || '') + '\n' + body.replace(/\n$/, '') + '\n' + f);
+    return '\u0000' + (fences.length - 1) + '\u0000';
+  }
+  /** Children of `el` as Markdown: inline runs joined, block children on their own lines. */
+  function mdBlock(el, r, pre) {
+    // Side-by-side boxes (a tool's name and arguments) read as words, not one run.
+    const gap = /flex|grid/.test(getComputedStyle(el).display) ? ' ' : '';
+    let s = '';
+    for (const c of el.childNodes) {
+      if (!r.intersectsNode(c)) continue;
+      if (c.nodeType === Node.TEXT_NODE) {
+        const t = clip(c, r);
+        s += pre ? t : t.replace(/\s+/g, ' ');
+      } else if (c.nodeType === Node.ELEMENT_NODE && !hidden(c)) {
+        const piece = mdNode(c, r, pre);
+        if (BLOCK.test(c.tagName)) s += '\n\n' + piece.trim() + '\n\n';
+        else if (piece) s += (gap && s && !/\s$/.test(s) ? gap : '') + piece;
+      }
+    }
+    return s;
+  }
+  function mdNode(el, r, pre) {
+    const tag = el.tagName;
+    const inner = () => tidy(mdBlock(el, r, pre)).trim();
+    switch (tag) {
+      case 'BR': return '\n';
+      case 'HR': return '---';
+      case 'IMG': return el.src.startsWith('data:') ? '' : `![${el.alt || ''}](${el.getAttribute('src')})`;
+      case 'INPUT': return el.checked ? '[x] ' : '[ ] ';
+      case 'STRONG': case 'B': { const t = inner(); return t ? `**${t}**` : ''; }
+      case 'EM': case 'I': { const t = inner(); return t ? `*${t}*` : ''; }
+      case 'DEL': case 'S': { const t = inner(); return t ? `~~${t}~~` : ''; }
+      case 'CODE': {
+        const t = rawText(el, r);
+        if (!t) return '';
+        const tick = t.includes('`') ? '``' : '`';
+        return tick + (tick.length > 1 ? ' ' + t + ' ' : t) + tick;
+      }
+      case 'A': {
+        const t = inner();
+        const href = el.getAttribute('href') || '';
+        return !href || t === href ? t : `[${t}](${href})`;
+      }
+      case 'H1': case 'H2': case 'H3': case 'H4': case 'H5': case 'H6':
+        return '#'.repeat(+tag[1]) + ' ' + inner();
+      case 'PRE': {
+        const code = el.querySelector('code');
+        const lang = code && (/(?:^|\s)language-(\S+)/.exec(code.className) || [])[1];
+        return fence(rawText(el, r), lang);
+      }
+      case 'BLOCKQUOTE':
+        return inner().split('\n').map((l) => (l ? '> ' + l : '>')).join('\n');
+      case 'UL': case 'OL': {
+        let n = tag === 'OL' ? el.start || 1 : 0;
+        const lines = [];
+        for (const li of el.children) {
+          if (li.tagName !== 'LI') continue;
+          const mark = tag === 'OL' ? n++ + '. ' : '- ';
+          if (!r.intersectsNode(li)) continue;
+          const body = tidy(mdBlock(li, r, pre)).trim().replace(/\n\n(?=\s*(?:[-*]|\d+\.) )/g, '\n');
+          const pad = ' '.repeat(mark.length);
+          lines.push(mark + body.split('\n').map((l, i) => (i && l ? pad + l : l)).join('\n'));
+        }
+        return lines.join('\n');
+      }
+      case 'TABLE': {
+        const rows = [...el.querySelectorAll('tr')].filter((tr) => r.intersectsNode(tr));
+        if (!rows.length) return '';
+        const cells = rows.map((tr) => [...tr.children].map((td) => tidy(mdBlock(td, r, false)).replace(/\n+/g, ' ').replace(/\|/g, '\\|').trim()));
+        const width = Math.max(...cells.map((c) => c.length));
+        const line = (c) => '| ' + Array.from({ length: width }, (_, i) => c[i] ?? '').join(' | ') + ' |';
+        const out = [line(cells[0]), '|' + ' --- |'.repeat(width)];
+        for (const c of cells.slice(1)) out.push(line(c));
+        return out.join('\n');
+      }
+      default: {
+        // Plain-text boxes (user messages, thinking, notes) keep their line breaks.
+        const ws = getComputedStyle(el).whiteSpace;
+        return mdBlock(el, r, pre || ws.startsWith('pre') || ws === 'break-spaces');
+      }
+    }
   }
   document.addEventListener('copy', (e) => {
     const text = selectedText();

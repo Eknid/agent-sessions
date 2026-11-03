@@ -2,6 +2,10 @@
 
 All notable changes to Agent Sessions are documented in this file.
 
+## 0.11.13 — 2026-11-03
+
+- Copying a selection from a session tab keeps its formatting again: lists, inline code, code blocks, emphasis, links, quotes and tables are copied as Markdown instead of bare text.
+
 ## 0.11.12 — 2026-11-02
 
 - The old shared session index is imported only once, so a window still running an older version can no longer change archived states or drop sessions afterwards.

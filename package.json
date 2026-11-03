@@ -2,7 +2,7 @@
   "name": "agent-sessions",
   "displayName": "Agent Sessions",
   "description": "Run and monitor multiple coding-agent sessions from VS Code, with chat, approvals, subagents, usage and cost tracking.",
-  "version": "0.11.12",
+  "version": "0.11.13",
   "publisher": "eknid-mucollari",
   "license": "MIT",
   "repository": {
