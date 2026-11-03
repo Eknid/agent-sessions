@@ -1,0 +1,25 @@
+CHANGELOG.md
+  s_2dcd4c5685740e::t_9f74a75e8fdc1a 5-8
+package-lock.json
+  s_2dcd4c5685740e::t_a5beb693470d71 3,9
+package.json
+  s_2dcd4c5685740e::t_b2ce4b46a77a7d 5
+resources/session/session.js
+  s_2dcd4c5685740e::t_a2b4d8fbe79d4f 891-895,900-1033
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af0274e334976ba2d9d9cb21efa14c8d01d8205d",
+  "prompts": {},
+  "sessions": {
+    "s_2dcd4c5685740e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e866a49-9f07-483b-ac16-2b6044577411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
