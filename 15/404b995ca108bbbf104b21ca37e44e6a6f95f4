@@ -1,0 +1,19 @@
+docs/PRODUCT_OVERVIEW.md
+  s_928ea4f2e29817::t_5ed66a55cefff3 1-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "15404b995ca108bbbf104b21ca37e44e6a6f95f4",
+  "prompts": {},
+  "sessions": {
+    "s_928ea4f2e29817": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17867-df7a-7783-935b-8a8dde40f821",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Eknid <Eknid@users.noreply.github.com>"
+    }
+  }
+}
